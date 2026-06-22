@@ -292,6 +292,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 					agentAutonomousModeEnabled: true,
 					readyForReviewNotificationsEnabled: true,
 					shortcuts: [],
+					setupScript: "",
 					commitPromptTemplate: current.commitPromptTemplateDefault,
 					openPrPromptTemplate: current.openPrPromptTemplateDefault,
 				});
@@ -337,6 +338,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 					agentAutonomousModeEnabled: true,
 					readyForReviewNotificationsEnabled: true,
 					shortcuts: [],
+					setupScript: "",
 					commitPromptTemplate: current.commitPromptTemplateDefault,
 					openPrPromptTemplate: current.openPrPromptTemplateDefault,
 				});
@@ -364,6 +366,7 @@ describe.sequential("runtime-config auto agent selection", () => {
 					agentAutonomousModeEnabled: true,
 					readyForReviewNotificationsEnabled: true,
 					shortcuts: [{ label: "Ship", command: "npm run ship", icon: "rocket" }],
+					setupScript: "",
 					commitPromptTemplate: current.commitPromptTemplateDefault,
 					openPrPromptTemplate: current.openPrPromptTemplateDefault,
 				});

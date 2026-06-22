@@ -46,7 +46,7 @@ import { resolveTaskTitle } from "../core/task-title.js";
 import { openInBrowser } from "../server/browser";
 import { buildRuntimeConfigResponse, resolveAgentCommand } from "../terminal/agent-registry";
 import type { TerminalSessionManager } from "../terminal/session-manager";
-import { resolveTaskCwd } from "../workspace/task-worktree";
+import { resolveTaskCwd, resolveTaskWorktreeSetupMarkerPath } from "../workspace/task-worktree";
 import { captureTaskTurnCheckpoint } from "../workspace/turn-checkpoints";
 import type { RuntimeTrpcContext, RuntimeTrpcWorkspaceScope } from "./app-router";
 
@@ -278,6 +278,14 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 						error: "No runnable agent command is configured. Open Settings, install a supported CLI, and select it.",
 					};
 				}
+				// Per-project setup script (install deps, write .env, etc.) runs once in
+				// the task terminal before the agent starts. Only for real task
+				// worktrees — the home agent session runs in the project root.
+				const setupScript = isHomeAgentSessionId(body.taskId) ? "" : scopedRuntimeConfig.setupScript;
+				const setupDoneMarkerPath =
+					setupScript.trim().length > 0
+						? await resolveTaskWorktreeSetupMarkerPath(taskCwd).catch(() => null)
+						: null;
 				const summary = await terminalManager.startTaskSession({
 					taskId: body.taskId,
 					agentId: resolved.agentId,
@@ -292,6 +300,8 @@ export function createRuntimeApi(deps: CreateRuntimeApiDependencies): RuntimeTrp
 					cols: body.cols,
 					rows: body.rows,
 					workspaceId: workspaceScope.workspaceId,
+					setupScript,
+					setupDoneMarkerPath,
 				});
 
 				let nextSummary = summary;

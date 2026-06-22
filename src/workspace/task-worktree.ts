@@ -8,6 +8,7 @@ import type {
 } from "../core/api-contract";
 import { type LockRequest, lockedFileSystem } from "../fs/locked-file-system";
 import { getRuntimeHomePath, getTaskWorktreesHomePath, loadWorkspaceContext } from "../state/workspace-state";
+import { SETUP_MARKER_FILENAME } from "../terminal/setup-script";
 import { getGitCommandErrorMessage, getGitStdout, readGitHeadInfo, runGit } from "./git-utils";
 import { getWorkspaceFolderLabelForWorktreePath, normalizeTaskIdForWorktreePath } from "./task-worktree-path";
 import { listTurbopackNodeModulesSymlinkSkipPaths } from "./task-worktree-turbopack";
@@ -636,6 +637,21 @@ export async function resolveTaskCwd(options: {
 		return worktreePath;
 	}
 	throw new Error(`Task worktree not found for task "${options.taskId}".`);
+}
+
+// Resolves the per-worktree marker that records one-time setup-script completion.
+// It lives inside the worktree's git directory (via `git rev-parse --git-path`),
+// so it is scoped to this worktree and never appears in the working tree.
+export async function resolveTaskWorktreeSetupMarkerPath(worktreePath: string): Promise<string | null> {
+	const result = await runGit(worktreePath, ["rev-parse", "--git-path", SETUP_MARKER_FILENAME]);
+	if (!result.ok) {
+		return null;
+	}
+	const relativeOrAbsolute = result.stdout.trim();
+	if (!relativeOrAbsolute) {
+		return null;
+	}
+	return isAbsolute(relativeOrAbsolute) ? relativeOrAbsolute : join(worktreePath, relativeOrAbsolute);
 }
 
 export async function getTaskWorkspacePathInfo(options: {
