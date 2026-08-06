@@ -21,6 +21,7 @@ interface RuntimeGlobalConfigFileShape {
 
 interface RuntimeProjectConfigFileShape {
 	shortcuts?: RuntimeProjectShortcut[];
+	setupScript?: string;
 }
 
 export interface RuntimeConfigState {
@@ -31,6 +32,7 @@ export interface RuntimeConfigState {
 	agentAutonomousModeEnabled: boolean;
 	readyForReviewNotificationsEnabled: boolean;
 	shortcuts: RuntimeProjectShortcut[];
+	setupScript: string;
 	commitPromptTemplate: string;
 	openPrPromptTemplate: string;
 	commitPromptTemplateDefault: string;
@@ -43,6 +45,7 @@ export interface RuntimeConfigUpdateInput {
 	agentAutonomousModeEnabled?: boolean;
 	readyForReviewNotificationsEnabled?: boolean;
 	shortcuts?: RuntimeProjectShortcut[];
+	setupScript?: string;
 	commitPromptTemplate?: string;
 	openPrPromptTemplate?: string;
 }
@@ -185,6 +188,13 @@ function normalizeBoolean(value: unknown, fallback: boolean): boolean {
 	return fallback;
 }
 
+function normalizeSetupScript(value: unknown): string {
+	if (typeof value !== "string") {
+		return "";
+	}
+	return value.trim().length > 0 ? value.trim() : "";
+}
+
 function normalizeShortcutLabel(value: unknown): string | null {
 	if (typeof value !== "string") {
 		return null;
@@ -284,6 +294,7 @@ function toRuntimeConfigState({
 			DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED,
 		),
 		shortcuts: normalizeShortcuts(projectConfig?.shortcuts),
+		setupScript: normalizeSetupScript(projectConfig?.setupScript),
 		commitPromptTemplate: normalizePromptTemplate(globalConfig?.commitPromptTemplate, DEFAULT_COMMIT_PROMPT_TEMPLATE),
 		openPrPromptTemplate: normalizePromptTemplate(
 			globalConfig?.openPrPromptTemplate,
@@ -382,16 +393,17 @@ async function writeRuntimeGlobalConfigFile(
 
 async function writeRuntimeProjectConfigFile(
 	configPath: string | null,
-	config: { shortcuts: RuntimeProjectShortcut[] },
+	config: { shortcuts: RuntimeProjectShortcut[]; setupScript: string },
 ): Promise<void> {
 	const normalizedShortcuts = normalizeShortcuts(config.shortcuts);
+	const normalizedSetupScript = normalizeSetupScript(config.setupScript);
 	if (!configPath) {
-		if (normalizedShortcuts.length > 0) {
-			throw new Error("Cannot save project shortcuts without a selected project.");
+		if (normalizedShortcuts.length > 0 || normalizedSetupScript.length > 0) {
+			throw new Error("Cannot save project settings without a selected project.");
 		}
 		return;
 	}
-	if (normalizedShortcuts.length === 0) {
+	if (normalizedShortcuts.length === 0 && normalizedSetupScript.length === 0) {
 		await rm(configPath, { force: true });
 		try {
 			await rm(dirname(configPath));
@@ -400,15 +412,16 @@ async function writeRuntimeProjectConfigFile(
 		}
 		return;
 	}
-	await lockedFileSystem.writeJsonFileAtomic(
-		configPath,
-		{
-			shortcuts: normalizedShortcuts,
-		} satisfies RuntimeProjectConfigFileShape,
-		{
-			lock: null,
-		},
-	);
+	const payload: RuntimeProjectConfigFileShape = {};
+	if (normalizedShortcuts.length > 0) {
+		payload.shortcuts = normalizedShortcuts;
+	}
+	if (normalizedSetupScript.length > 0) {
+		payload.setupScript = normalizedSetupScript;
+	}
+	await lockedFileSystem.writeJsonFileAtomic(configPath, payload, {
+		lock: null,
+	});
 }
 
 interface RuntimeConfigFiles {
@@ -454,6 +467,7 @@ function createRuntimeConfigStateFromValues(input: {
 	agentAutonomousModeEnabled: boolean;
 	readyForReviewNotificationsEnabled: boolean;
 	shortcuts: RuntimeProjectShortcut[];
+	setupScript: string;
 	commitPromptTemplate: string;
 	openPrPromptTemplate: string;
 }): RuntimeConfigState {
@@ -471,6 +485,7 @@ function createRuntimeConfigStateFromValues(input: {
 			DEFAULT_READY_FOR_REVIEW_NOTIFICATIONS_ENABLED,
 		),
 		shortcuts: normalizeShortcuts(input.shortcuts),
+		setupScript: normalizeSetupScript(input.setupScript),
 		commitPromptTemplate: normalizePromptTemplate(input.commitPromptTemplate, DEFAULT_COMMIT_PROMPT_TEMPLATE),
 		openPrPromptTemplate: normalizePromptTemplate(input.openPrPromptTemplate, DEFAULT_OPEN_PR_PROMPT_TEMPLATE),
 		commitPromptTemplateDefault: DEFAULT_COMMIT_PROMPT_TEMPLATE,
@@ -487,6 +502,7 @@ export function toGlobalRuntimeConfigState(current: RuntimeConfigState): Runtime
 		agentAutonomousModeEnabled: current.agentAutonomousModeEnabled,
 		readyForReviewNotificationsEnabled: current.readyForReviewNotificationsEnabled,
 		shortcuts: [],
+		setupScript: "",
 		commitPromptTemplate: current.commitPromptTemplate,
 		openPrPromptTemplate: current.openPrPromptTemplate,
 	});
@@ -522,6 +538,7 @@ export async function saveRuntimeConfig(
 		agentAutonomousModeEnabled: boolean;
 		readyForReviewNotificationsEnabled: boolean;
 		shortcuts: RuntimeProjectShortcut[];
+		setupScript: string;
 		commitPromptTemplate: string;
 		openPrPromptTemplate: string;
 	},
@@ -536,7 +553,10 @@ export async function saveRuntimeConfig(
 			commitPromptTemplate: config.commitPromptTemplate,
 			openPrPromptTemplate: config.openPrPromptTemplate,
 		});
-		await writeRuntimeProjectConfigFile(projectConfigPath, { shortcuts: config.shortcuts });
+		await writeRuntimeProjectConfigFile(projectConfigPath, {
+			shortcuts: config.shortcuts,
+			setupScript: config.setupScript,
+		});
 		return createRuntimeConfigStateFromValues({
 			globalConfigPath,
 			projectConfigPath,
@@ -545,6 +565,7 @@ export async function saveRuntimeConfig(
 			agentAutonomousModeEnabled: config.agentAutonomousModeEnabled,
 			readyForReviewNotificationsEnabled: config.readyForReviewNotificationsEnabled,
 			shortcuts: config.shortcuts,
+			setupScript: config.setupScript,
 			commitPromptTemplate: config.commitPromptTemplate,
 			openPrPromptTemplate: config.openPrPromptTemplate,
 		});
@@ -558,6 +579,9 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 		if (projectConfigPath === null && normalizeShortcuts(updates.shortcuts).length > 0) {
 			throw new Error("Cannot save project shortcuts without a selected project.");
 		}
+		if (projectConfigPath === null && normalizeSetupScript(updates.setupScript).length > 0) {
+			throw new Error("Cannot save a project setup script without a selected project.");
+		}
 		const nextConfig = {
 			selectedAgentId: updates.selectedAgentId ?? current.selectedAgentId,
 			selectedShortcutLabel:
@@ -566,6 +590,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			readyForReviewNotificationsEnabled:
 				updates.readyForReviewNotificationsEnabled ?? current.readyForReviewNotificationsEnabled,
 			shortcuts: projectConfigPath ? (updates.shortcuts ?? current.shortcuts) : current.shortcuts,
+			setupScript: projectConfigPath ? (updates.setupScript ?? current.setupScript) : current.setupScript,
 			commitPromptTemplate: updates.commitPromptTemplate ?? current.commitPromptTemplate,
 			openPrPromptTemplate: updates.openPrPromptTemplate ?? current.openPrPromptTemplate,
 		};
@@ -577,6 +602,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			nextConfig.readyForReviewNotificationsEnabled !== current.readyForReviewNotificationsEnabled ||
 			nextConfig.commitPromptTemplate !== current.commitPromptTemplate ||
 			nextConfig.openPrPromptTemplate !== current.openPrPromptTemplate ||
+			normalizeSetupScript(nextConfig.setupScript) !== normalizeSetupScript(current.setupScript) ||
 			!areRuntimeProjectShortcutsEqual(nextConfig.shortcuts, current.shortcuts);
 
 		if (!hasChanges) {
@@ -593,6 +619,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 		});
 		await writeRuntimeProjectConfigFile(projectConfigPath, {
 			shortcuts: nextConfig.shortcuts,
+			setupScript: nextConfig.setupScript,
 		});
 		return createRuntimeConfigStateFromValues({
 			globalConfigPath,
@@ -602,6 +629,7 @@ export async function updateRuntimeConfig(cwd: string, updates: RuntimeConfigUpd
 			agentAutonomousModeEnabled: nextConfig.agentAutonomousModeEnabled,
 			readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
 			shortcuts: nextConfig.shortcuts,
+			setupScript: nextConfig.setupScript,
 			commitPromptTemplate: nextConfig.commitPromptTemplate,
 			openPrPromptTemplate: nextConfig.openPrPromptTemplate,
 		});
@@ -664,6 +692,7 @@ export async function updateGlobalRuntimeConfig(
 				agentAutonomousModeEnabled: nextConfig.agentAutonomousModeEnabled,
 				readyForReviewNotificationsEnabled: nextConfig.readyForReviewNotificationsEnabled,
 				shortcuts: nextConfig.shortcuts,
+				setupScript: current.setupScript,
 				commitPromptTemplate: nextConfig.commitPromptTemplate,
 				openPrPromptTemplate: nextConfig.openPrPromptTemplate,
 			});

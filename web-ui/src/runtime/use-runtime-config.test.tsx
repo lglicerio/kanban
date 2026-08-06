@@ -45,6 +45,7 @@ function createRuntimeConfigResponse(selectedAgentId: RuntimeConfigResponse["sel
 			},
 		],
 		shortcuts: [],
+		setupScript: "",
 		clineProviderSettings: {
 			providerId: null,
 			modelId: null,

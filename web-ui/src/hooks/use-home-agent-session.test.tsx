@@ -99,6 +99,7 @@ function createRuntimeConfig(overrides: Partial<RuntimeConfigResponse> = {}): Ru
 			},
 		],
 		shortcuts: [],
+		setupScript: "",
 		clineProviderSettings: {
 			providerId: "anthropic",
 			modelId: "claude-sonnet-4-6",

@@ -25,6 +25,7 @@ import { hasCodexWorkspaceTrustPrompt, shouldAutoConfirmCodexWorkspaceTrust } fr
 import { stripAnsi } from "./output-utils";
 import { PtySession } from "./pty-session";
 import { reduceSessionTransition, type SessionTransitionEvent } from "./session-state-machine";
+import { buildSetupWrappedCommand } from "./setup-script";
 import {
 	createTerminalProtocolFilterState,
 	disableOscColorQueryIntercept,
@@ -90,6 +91,12 @@ export interface StartTaskSessionRequest {
 	rows?: number;
 	env?: Record<string, string | undefined>;
 	workspaceId?: string;
+	// Per-project setup script to run once in the task terminal before the agent
+	// starts (e.g. install dependencies, write .env). Empty when not configured.
+	setupScript?: string;
+	// Absolute path to the per-worktree marker that records setup completion so
+	// the setup script runs only once per worktree.
+	setupDoneMarkerPath?: string | null;
 }
 
 export interface StartShellSessionRequest {
@@ -345,11 +352,20 @@ export class TerminalSessionManager implements TerminalSessionService {
 		const hasCodexLaunchSignature = [commandBinary, ...commandArgs].some((part) =>
 			part.toLowerCase().includes("codex"),
 		);
+		// When a project setup script is configured, run it once in the task
+		// terminal before exec-ing into the agent command. Adapter detection above
+		// still uses the unwrapped command so agent-specific behavior is preserved.
+		const spawnCommand = buildSetupWrappedCommand({
+			setupScript: request.setupScript ?? "",
+			doneMarkerPath: request.setupDoneMarkerPath,
+			commandBinary,
+			commandArgs,
+		});
 		let session: PtySession;
 		try {
 			session = PtySession.spawn({
-				binary: commandBinary,
-				args: commandArgs,
+				binary: spawnCommand.binary,
+				args: spawnCommand.args,
 				cwd: request.cwd,
 				env,
 				cols,

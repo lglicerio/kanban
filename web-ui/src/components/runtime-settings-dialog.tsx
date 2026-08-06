@@ -375,6 +375,7 @@ export function RuntimeSettingsDialog({
 	const [shortcuts, setShortcuts] = useState<RuntimeProjectShortcut[]>([]);
 	const [commitPromptTemplate, setCommitPromptTemplate] = useState("");
 	const [openPrPromptTemplate, setOpenPrPromptTemplate] = useState("");
+	const [setupScript, setSetupScript] = useState("");
 	const [selectedPromptVariant, setSelectedPromptVariant] = useState<TaskGitAction>("commit");
 	const [copiedVariableToken, setCopiedVariableToken] = useState<string | null>(null);
 	const [saveError, setSaveError] = useState<string | null>(null);
@@ -445,6 +446,7 @@ export function RuntimeSettingsDialog({
 	const initialShortcuts = config?.shortcuts ?? [];
 	const initialCommitPromptTemplate = config?.commitPromptTemplate ?? "";
 	const initialOpenPrPromptTemplate = config?.openPrPromptTemplate ?? "";
+	const initialSetupScript = config?.setupScript ?? "";
 	const clineSettings = useRuntimeSettingsClineController({
 		open,
 		workspaceId,
@@ -488,6 +490,9 @@ export function RuntimeSettingsDialog({
 		) {
 			return true;
 		}
+		if (setupScript.trim() !== initialSetupScript.trim()) {
+			return true;
+		}
 		return (
 			normalizeTemplateForComparison(openPrPromptTemplate) !==
 			normalizeTemplateForComparison(initialOpenPrPromptTemplate)
@@ -504,11 +509,13 @@ export function RuntimeSettingsDialog({
 		initialOpenPrPromptTemplate,
 		initialReadyForReviewNotificationsEnabled,
 		initialSelectedAgentId,
+		initialSetupScript,
 		initialShortcuts,
 		initialThemeId,
 		openPrPromptTemplate,
 		readyForReviewNotificationsEnabled,
 		selectedAgentId,
+		setupScript,
 		shortcuts,
 	]);
 
@@ -522,6 +529,7 @@ export function RuntimeSettingsDialog({
 		setShortcuts(config?.shortcuts ?? []);
 		setCommitPromptTemplate(config?.commitPromptTemplate ?? "");
 		setOpenPrPromptTemplate(config?.openPrPromptTemplate ?? "");
+		setSetupScript(config?.setupScript ?? "");
 		setSaveError(null);
 	}, [
 		config?.agentAutonomousModeEnabled,
@@ -529,6 +537,7 @@ export function RuntimeSettingsDialog({
 		config?.openPrPromptTemplate,
 		config?.readyForReviewNotificationsEnabled,
 		config?.selectedAgentId,
+		config?.setupScript,
 		config?.shortcuts,
 		fallbackAgentId,
 		open,
@@ -704,6 +713,7 @@ export function RuntimeSettingsDialog({
 			shortcuts,
 			commitPromptTemplate,
 			openPrPromptTemplate,
+			setupScript,
 		});
 		if (!saved) {
 			setSaveError("Could not save runtime settings. Check runtime logs and try again.");
@@ -1157,6 +1167,30 @@ export function RuntimeSettingsDialog({
 						{shortcuts.length === 0 ? (
 							<p className="text-text-secondary text-[13px]">No shortcuts configured.</p>
 						) : null}
+					</div>
+
+					<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
+						<h6 className="text-[12px] font-semibold uppercase tracking-wider text-text-secondary m-0 mb-2">
+							Setup script
+						</h6>
+						<p className="text-text-secondary text-[13px] mt-0 mb-2">
+							Shell commands that run once in the task terminal right after a worktree is created, before the
+							agent starts. Use it to install dependencies or write a per-task <code>.env</code>. If it exits
+							non-zero, the agent is not started and setup retries on the next run.
+						</p>
+						<textarea
+							rows={5}
+							value={setupScript}
+							onChange={(event) => setSetupScript(event.target.value)}
+							placeholder={"npm install\ncp ../.env.example .env"}
+							disabled={controlsDisabled}
+							spellCheck={false}
+							className="w-full rounded-md border border-border bg-surface-2 p-3 text-[13px] text-text-primary font-mono placeholder:text-text-tertiary focus:border-border-focus focus:outline-none resize-none disabled:opacity-40"
+						/>
+						<p className="text-text-secondary text-[13px] mt-2 mb-0">
+							Runs once per worktree (tracked in the worktree’s git directory). On macOS and Linux it runs in
+							your <code>$SHELL</code>; the agent starts only after it succeeds.
+						</p>
 					</div>
 
 					{saveError ? (

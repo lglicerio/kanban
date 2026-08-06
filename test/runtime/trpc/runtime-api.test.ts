@@ -183,6 +183,7 @@ function createRuntimeConfigState(): RuntimeConfigState {
 		agentAutonomousModeEnabled: true,
 		readyForReviewNotificationsEnabled: true,
 		shortcuts: [],
+		setupScript: "",
 		commitPromptTemplate: "commit",
 		openPrPromptTemplate: "pr",
 		commitPromptTemplateDefault: "commit",
